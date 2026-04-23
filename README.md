@@ -21,7 +21,7 @@ Sync packages from SAP to local files. Edit in any editor. Use git for version c
        ^     <─────────────────           │         <────────────────        │
        │                                  │                                  │
        │      workspace pull              v                                  v
-       └──────────────────────     Edit in VS Code              Pull Request / Review
+       └──────────────────────     Edit in any editor           Pull Request / Review
                                    Branch per fix
                                    Diff + review
 ```
@@ -98,7 +98,7 @@ Run syntax checks, ATC analysis, and unit tests from any CI system. Every comman
 ```
   git push          CI Pipeline                               SAP System
  ┌──────────┐      ┌──────────────────────────────────┐      ┌──────────┐
- │ Branch   │─────>│ adtctl check syntax ... --json   │<────>│  ADT     │
+ │ Branch   │─────>│ adtctl check syntax ... --json   │─────>│  ADT     │
  │ pushed   │      │ adtctl check atc ...   --json   │      │  APIs    │
  └──────────┘      │ adtctl check unit ...  --json   │      └──────────┘
                    └──────────┬───────────────────────┘
@@ -200,8 +200,9 @@ Every command outputs JSON and returns exit codes. Pipe, filter, loop, schedule.
 
 ```bash
 # Weekly: assess all custom packages, feed into Grafana
+mkdir -p "scores/$(date +%Y-%m-%d)"
 for pkg in $(adtctl package list --json | jq -r '.[].name'); do
-  adtctl clean-core assess $pkg --json >> "scores/$(date +%Y-%m-%d).json"
+  adtctl clean-core assess $pkg --json > "scores/$(date +%Y-%m-%d)/${pkg}.json"
 done
 adtctl clean-core executive    # aggregate cross-package report
 ```
@@ -221,11 +222,11 @@ done
 ```bash
 adtctl clean-core prep S4H/ZLEGACY
 cd clean-core/S4H/ZLEGACY/fix-context
-for file in *.clas.abap; do
-  obj=$(basename $file .clas.abap | tr 'a-z' 'A-Z')
+for file in *.abap; do
+  obj=$(basename "$file" | sed 's/\.[^.]*\.abap$//' | tr 'a-z' 'A-Z')
   git checkout -b "fix/${obj}"
   # fix findings using .context/ metadata
-  adtctl check syntax $obj --source $file --json    # validate
+  adtctl check syntax $obj --source "$file" --json    # validate
   git add -A && git commit -m "Fix: $obj"
   gh pr create --title "Clean core: $obj"
   git checkout main
@@ -244,6 +245,8 @@ done
 ---
 
 ## Download
+
+**Requires:** ADT endpoints enabled on the SAP system (standard on S/4HANA; available on NetWeaver 7.50+). Nothing installed on SAP — adtctl connects over HTTPS.
 
 | Platform | Binary |
 |----------|--------|
@@ -277,8 +280,22 @@ Verify: `adtctl --version`
 adtctl init                          # create .adtctl.json template
 # Edit .adtctl.json with your SAP host, SID, client, username (see Configuration below)
 export ADTCTL_PASSWORD='your-password'
-adtctl system-check                  # verify connectivity
+
+adtctl system-check                  # verify connectivity + auth
+adtctl package list                  # confirm you can read
+adtctl object tree ZFINANCE          # confirm you can browse a package
 ```
+
+### Troubleshooting first-run failures
+
+| Symptom | Likely cause |
+|---------|--------------|
+| `401 Unauthorized` | `ADTCTL_PASSWORD` not exported, or wrong client/username |
+| `404` on every command | ADT services not enabled on the system (ask Basis) |
+| `Certificate verification failed` | Self-signed cert — set `NODE_EXTRA_CA_CERTS=/path/to/ca.pem` |
+| `CSRF token required` loops | Stale session file — delete `.adtctl/.session.json` and retry |
+
+Run `adtctl discover` to see which ADT services a given system exposes.
 
 ---
 
@@ -316,10 +333,11 @@ They're complementary. Use abapGit when you need branch/merge operations managed
 | `workspace pull` | `git pull` | Refresh from SAP (with conflict detection) |
 | `workspace push` | `git push` | Upload local changes to SAP |
 | `workspace reset` | `git checkout .` | Discard local changes, restore SAP baseline |
+| `workspace refresh` | — | Discover and pull new objects added to the package |
+| `workspace add` | — | Add specific objects to the workspace |
+| `workspace remove` | — | Stop tracking objects |
 
 All workspace write commands (init, pull, push) save progress after each object — Ctrl+C stops gracefully without losing completed work. Re-run the same command to continue.
-| `workspace add` | - | Add new objects to the workspace |
-| `workspace remove` | - | Stop tracking objects |
 
 ### Clean Core assessment and remediation
 
@@ -370,9 +388,9 @@ adtctl source format < dirty.abap > clean.abap   # pretty-print via SAP formatte
 adtctl create class ZCL_NEW --package ZDEV --description "New class"
 adtctl create ddl-source ZSALES_I --package ZDEV --description "Sales CDS view"
 # 21 types: class, interface, program, include, function-group, function-module,
-# table, structure, data-element, domain, ddl-source, access-control,
-# metadata-extension, annotation-definition, service-definition, service-binding,
-# message-class, auth-field, auth-object, package, ...
+# function-group-include, table, structure, data-element, domain, ddl-source,
+# access-control, metadata-extension, annotation-definition, service-definition,
+# service-binding, message-class, auth-field, auth-object, package
 
 adtctl object search ZCL_* --type CLAS --package ZDEV
 adtctl object tree ZDEV
@@ -476,8 +494,6 @@ adtctl package list -c prod
 
 **Resolution order:** CLI flags > `.adtctl.json` > built-in defaults.
 
-**Requirements:** ADT endpoints enabled on the SAP system (standard on S/4HANA; available on NetWeaver 7.50+). No programs, transports, or installations required on the SAP system - connects over HTTPS.
-
 <details>
 <summary>Optional config sections</summary>
 
@@ -504,12 +520,12 @@ adtctl package list -c prod
 | Flag | Description |
 |------|-------------|
 | `--json` | Structured JSON output (all commands) |
-| `--dry-run` | Preview without side effects (write commands) |
 | `--verbose` | Debug-level output |
 | `--log-file [path]` | Write log to file |
+| `--log-level <level>` | File log level: `debug`, `info`, `warning`, `error` |
 | `--session-file <path>` | Persist session across invocations |
-| `-c, --connection <name>` | Select SAP connection from config |
-| `-y, --yes` | Skip confirmation prompts |
+
+Common per-command flags: `-c, --connection <name>` (select SAP connection), `--dry-run` (preview without side effects, on write commands), `-y, --yes` (skip confirmation prompts, on destructive commands).
 
 ## All Commands
 
