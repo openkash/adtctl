@@ -4,7 +4,7 @@ Scriptable access to SAP systems from the terminal.
 
 Sync code, run quality checks, manage transports, assess S/4HANA readiness, and query data. `--json` output on every command, composable with standard Unix tools. No SAP-side installation required.
 
-102 commands. Single binary. No runtime dependencies. Works with S/4HANA, ECC, and NetWeaver AS ABAP 7.50+. Requires ADT endpoints enabled.
+103 commands. Single binary. No runtime dependencies. Works with S/4HANA, ECC, and NetWeaver AS ABAP 7.50+. Requires ADT endpoints enabled.
 
 **Contents**
 - [What You Can Do](#what-you-can-do) — 6 use cases with examples
@@ -592,7 +592,7 @@ Common per-command flags: `-c, --connection <name>` (select SAP connection), `--
 ## All Commands
 
 <details>
-<summary>102 commands across 17 groups</summary>
+<summary>103 commands across 17 groups</summary>
 
 | Group | Commands |
 |-------|----------|
@@ -604,7 +604,7 @@ Common per-command flags: `-c, --connection <name>` (select SAP connection), `--
 | **check** | `syntax`, `atc`, `unit`, `atc-variants`, `cds-syntax`, `atc-exempt-proposal`, `atc-exempt` |
 | **transport** | `info`, `create`, `list`, `get`, `release`, `delete` |
 | **data** | `query`, `cds`, `sql` |
-| **workspace** | `init`, `status`, `list`, `pull`, `push`, `diff`, `add`, `remove`, `reset` |
+| **workspace** | `init`, `status`, `list`, `pull`, `push`, `diff`, `add`, `remove`, `reset`, `refresh` |
 | **clean-core** | `assess`, `report`, `executive`, `prep`, `apply` |
 | **ddic** | `table`, `table-settings`, `data-element`, `domain`, `table-type`, `lock-object`, `type-group`, `structure`, `view` |
 | **cds** | `annotations`, `element-info`, `repository-access`, `test-dependencies` |
